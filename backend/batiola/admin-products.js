@@ -7,7 +7,6 @@ import { flash } from '../../flash.js';
 import { renderPage } from '../../render.js';
 import { urlFor } from '../../urls.js';
 import { groupProducts, readPhotos, toDecimal, toInt } from '../../utils.js';
-import { todo } from '../shared/stub.js';
 import { roleRequired } from '../shared/auth.js';
 
 /** Category list screen. Used for the plain GET and to re-show the page after a failed POST. */
@@ -66,6 +65,47 @@ async function showProductForm(req, res, productId, overrides = {}, status = 200
   return renderPage(req, res, 'admin/product_form.html', {
     editing: Boolean(productId), product, product_id: productId, current: item, categories, variants,
   }, status);
+}
+
+/** Photo gallery of one color. Photos belong to one colour row and are shared by its sizes. */
+async function showPhotos(req, res, productId, status = 200) {
+  let item;
+  let variants;
+  let gallery;
+  try {
+    item = await db.callFunctionOne('fn_get_product', productId);
+    if (!item) return notFound(req, res);
+    variants = await db.callFunction('fn_list_variants', productId);
+    gallery = await db.callFunction('fn_list_product_photos', productId);
+  } catch (error) {
+    flash(req, 'error', error.message);
+    return notFound(req, res);
+  }
+  const byColor = new Map();
+  for (const v of variants) {
+    if (v.color && !byColor.has(v.color)) byColor.set(v.color, { name: v.color, first_id: v.product_id });
+  }
+  return renderPage(req, res, 'admin/product_photos.html', {
+    current: item,
+    product_id: productId,
+    colors: [...byColor.values()],
+    gallery,
+    photo_urls: gallery.map((g) => urlFor('catalog.product_image', { image_id: g.image_id })),
+    many_sizes: variants.filter((v) => (v.color || '') === (item.color || '')).length > 1,
+  }, status);
+}
+
+/** Runs one photo change, then returns to the gallery. `success` is the message, or a function that builds it. */
+async function changePhotos(req, res, success, action) {
+  const productId = Number(req.params.product_id);
+  try {
+    await action(productId);
+  } catch (error) {
+    flash(req, 'error', error.message);
+    return showPhotos(req, res, productId, 400);
+  }
+  flash(req, 'success', typeof success === 'function' ? success() : success);
+  return res.redirect(urlFor('admin_products.photos', { product_id: productId }));
 }
 
 /** The page a management button was clicked on, so a deactivate returns there. Same-site admin pages only. */
@@ -150,37 +190,37 @@ export default function register(router) {
     }
   });
 
-  // DB: fn_get_product, fn_list_product_photos, fn_list_variants
-  router.get('/admin/products/:product_id(\\d+)/photos', 'admin_products.photos', roleRequired('AD'), todo({
-    owner: 'Batiola',
-    feature: 'PRODUCT — photo gallery',
-    routines: 'fn_get_product, fn_list_product_photos, fn_list_variants',
-    template: 'admin/product_photos.html',
-  }));
+  // ------------------------------------------------------------------ photos
+  router.get('/admin/products/:product_id(\\d+)/photos', 'admin_products.photos', roleRequired('AD'),
+    (req, res) => showPhotos(req, res, Number(req.params.product_id)));
 
-  // DB: sp_add_product_photo(product_id, mime_type, image_data, apply_all)
-  router.post('/admin/products/:product_id(\\d+)/photos/upload', 'admin_products.upload_photos', roleRequired('AD'), todo({
-    owner: 'Batiola',
-    feature: 'PRODUCT — upload photos',
-    routines: 'sp_add_product_photo',
-    template: 'admin/product_photos.html',
-  }));
+  router.post('/admin/products/:product_id(\\d+)/photos/upload', 'admin_products.upload_photos', roleRequired('AD'),
+    (req, res) => {
+      const applyAll = req.body.apply_all === '1';
+      let uploaded = 0;
+      return changePhotos(req, res, () => `${uploaded} photo${uploaded === 1 ? '' : 's'} uploaded.`, async (productId) => {
+        const { mimes, datas } = readPhotos((req.files || []).filter((file) => file.fieldname === 'photos'));
+        if (!datas.length) throw new Error('Choose at least one photo to upload.');
+        const room = 8 - (await db.callFunction('fn_list_product_photos', productId)).length;
+        if (datas.length > room) {
+          throw new Error(room > 0 ? `This color has room for ${room} more photo(s). Choose fewer.` : 'This color already has 8 photos. Remove one first.');
+        }
+        for (let i = 0; i < datas.length; i += 1) {
+          await db.callProcedure('sp_add_product_photo', productId, mimes[i], datas[i], applyAll, null);
+          uploaded += 1;
+        }
+      });
+    });
 
-  // DB: sp_remove_product_photo(product_id, image_id, apply_all)
-  router.post('/admin/products/:product_id(\\d+)/photos/:image_id(\\d+)/remove', 'admin_products.remove_photo', roleRequired('AD'), todo({
-    owner: 'Batiola',
-    feature: 'PRODUCT — remove photo',
-    routines: 'sp_remove_product_photo',
-    template: 'admin/product_photos.html',
-  }));
+  router.post('/admin/products/:product_id(\\d+)/photos/:image_id(\\d+)/remove', 'admin_products.remove_photo', roleRequired('AD'),
+    (req, res) => changePhotos(req, res, 'Photo removed.', (productId) => db.callProcedure(
+      'sp_remove_product_photo', productId, Number(req.params.image_id), req.body.apply_all === '1',
+    )));
 
-  // DB: sp_set_cover_photo(product_id, image_id, apply_all)
-  router.post('/admin/products/:product_id(\\d+)/photos/:image_id(\\d+)/cover', 'admin_products.cover_photo', roleRequired('AD'), todo({
-    owner: 'Batiola',
-    feature: 'PRODUCT — set cover photo',
-    routines: 'sp_set_cover_photo',
-    template: 'admin/product_photos.html',
-  }));
+  router.post('/admin/products/:product_id(\\d+)/photos/:image_id(\\d+)/cover', 'admin_products.cover_photo', roleRequired('AD'),
+    (req, res) => changePhotos(req, res, 'Cover photo updated.', (productId) => db.callProcedure(
+      'sp_set_cover_photo', productId, Number(req.params.image_id), req.body.apply_all === '1',
+    )));
 
   // DB: sp_add_variant(product_id, size, color)
   router.post('/admin/products/:product_id(\\d+)/add-variant', 'admin_products.add_variant', roleRequired('AD'), async (req, res) => {
