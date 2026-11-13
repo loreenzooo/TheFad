@@ -6,9 +6,19 @@
   <h1>{{ 'Edit product' if editing else 'Add product' }}</h1>
   <a class="btn btn-quiet" href="{{ url_for('admin_products.index') }}">Back</a>
 </div>
-{% if not categories %}
+{% if not categories|length %}
   <p class="empty">There are no categories yet. <a href="{{ url_for('admin_products.categories') }}">Add a category</a> before adding a product.</p>
 {% else %}
+{% if editing %}
+<h2>Add a color or size</h2>
+<p class="muted">Need another color or size of this product? Add it here first. Its stock starts at 0.</p>
+<form class="toolbar" method="post" action="{{ url_for('admin_products.add_variant', {product_id: product_id}) }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input name="color" placeholder="New color" maxlength="30" aria-label="Color">
+  <input name="size" placeholder="New size" maxlength="20" aria-label="Size">
+  <button class="btn" type="submit">Add</button>
+</form>
+{% endif %}
 <div class="editor-layout product-editor">
 <form id="product-editor" class="form wide" method="post" enctype="multipart/form-data"
       action="{{ url_for('admin_products.edit', {product_id: product_id}) if editing else url_for('admin_products.new') }}">
@@ -114,13 +124,6 @@
     </tr>{% endfor %}
   </tbody>
 </table></div>
-<h2>Add a color or size</h2>
-<form class="toolbar" method="post" action="{{ url_for('admin_products.add_variant', {product_id: product_id}) }}">
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <input name="color" placeholder="New color" maxlength="30" aria-label="Color">
-  <input name="size" placeholder="New size" maxlength="20" aria-label="Size">
-  <button class="btn" type="submit">Add</button>
-</form>
 {% endif %}
 {% endif %}
 {% endblock %}

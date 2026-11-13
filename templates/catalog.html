@@ -3,6 +3,22 @@
 {% from "_macros.html" import thumb, swatch, price, stock_line %}
 {% block title %}Shop{% endblock %}
 {% block content %}
+<style>
+  /* Products sit in the middle under the category pills; a short last row stays centered too. */
+  @media (min-width: 801px) {
+    .shop-results .cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.75rem 1.5rem; }
+    .shop-results .cards .card { flex: 0 0 260px; }
+  }
+  .section-head { display: flex; flex-direction: column; align-items: center; gap: .15rem; margin: 2.5rem 0 1.25rem; text-align: center; }
+  .shop-results .section-head .section-title { margin: 0; text-align: center; }
+  .section-head .quiet-link { font-size: .85rem; }
+  /* Cards: raised white tiles instead of flat images. */
+  .card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: transform .2s ease, box-shadow .2s ease; }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 2px 4px rgba(18,20,26,.06), 0 16px 32px rgba(18,20,26,.13); }
+  .card .card-img { border-radius: 0; }
+  .card-body { padding: .85rem 1rem 1rem; }
+  .card.is-out .card-img .thumb { opacity: .5; }
+</style>
 <section class="hero">
   <h1>Fashion You Always Deserve</h1>
   <p class="muted">Search by name, color or size. To order, message our <a href="{{ store.facebook }}" target="_blank" rel="noopener">official Facebook page</a>.</p>
@@ -15,7 +31,7 @@
   <a class="pill {{ '' if category else 'on' }}" href="{{ url_for('catalog.index', {q: q or None, instock: '1' if in_stock else None, sort: sort if sort != 'featured' else None}) }}">All</a>
   {% for c in categories %}
   <a class="pill {{ 'on' if category == c.category_id else '' }}"
-     href="{{ url_for('catalog.index', {q: q or None, category: c.category_id, instock: '1' if in_stock else None, sort: sort if sort != 'featured' else None}) }}">{{ c.category_name }}</a>
+    href="{{ url_for('catalog.index', {q: q or None, category: c.category_id, instock: '1' if in_stock else None, sort: sort if sort != 'featured' else None}) }}">{{ c.category_name }}</a>
   {% endfor %}
 </div>
 </section>
@@ -34,7 +50,7 @@
 </form>
 
 {% macro card_html(c) %}
-<article class="card">
+<article class="card {{ 'is-out' if c.status == 'out' else '' }}">
   <a class="card-img" href="{{ url_for('catalog.product', {product_id: c.first_id}) }}" aria-label="{{ c.name }}">
     {{ thumb(c.image_id, c.name, 'card') }}
     <span class="card-badges">
@@ -45,7 +61,7 @@
   <div class="card-body">
     <h3><a href="{{ url_for('catalog.product', {product_id: c.first_id}) }}">{{ c.name }}</a></h3>
     <p class="card-price">{{ price(c) }}</p>
-    {% if c.colors %}
+    {% if c.colors|length %}
     <p class="dots" aria-label="Colors">
       {% for col in c.colors|limit(6) %}<a class="dot" href="{{ url_for('catalog.product', {product_id: col.first_id, color: col.name}) }}"
         style="background: {{ col.name|color_hex }}" title="{{ col.name }}" aria-label="{{ col.name }}"
@@ -54,21 +70,24 @@
     </p>
     {% endif %}
     <p class="card-stock">{{ stock_line(c.status, c.stock) }}
-      {% if c.sizes %}<span class="muted small"> · {{ c.sizes|map('size')|join(', ') }}</span>{% endif %}</p>
+      {% if c.sizes|length %}<span class="muted small"> · {{ c.sizes|map('size')|join(', ') }}</span>{% endif %}</p>
   </div>
 </article>
 {% endmacro %}
 
 {% if filtered %}
   <p class="results muted">{{ cards|length }} product{{ '' if cards|length == 1 else 's' }}{% if q %} for “{{ q }}”{% endif %}</p>
-  {% if cards %}
+  {% if cards|length %}
   <div class="cards">{% for c in cards %}{{ card_html(c) }}{% endfor %}</div>
   {% else %}
-  <p class="empty">Nothing matches that search. Try fewer words, another color, or clear the filters.</p>
+  <p class="empty">Nothing matches that search. Try fewer words, another color, or clear the filters.<br><a class="btn btn-sm" href="{{ url_for('catalog.index') }}">Clear filters and see everything</a></p>
   {% endif %}
 {% else %}
   {% for sec in sections %}
-  <h2 class="section-title">{{ sec.name }}</h2>
+  <div class="section-head">
+    <h2 class="section-title">{{ sec.name }}</h2>
+    {% if sec.total > sec.cards|length %}<a class="quiet-link" href="{{ url_for('catalog.index', {category: sec.category_id}) }}">View all {{ sec.total }} &rarr;</a>{% endif %}
+  </div>
   <div class="cards">{% for c in sec.cards %}{{ card_html(c) }}{% endfor %}</div>
   {% else %}
   <p class="empty">No products are listed yet. Check back soon.</p>

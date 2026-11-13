@@ -25,7 +25,7 @@
   {% else %}One row per product &middot;
   <a href="{{ url_for('admin_products.index', {q: q or None, category: category, inactive: '1' if show_inactive else None, variants: '1'}) }}">Show every color and size</a>
   {% endif %}</p>
-{% if products and not variants_view %}
+{% if products|length and not variants_view %}
 <div class="table-wrap"><table class="table">
   <thead><tr><th></th><th>Product</th><th class="num">Product ID</th><th>Colors</th><th>Sizes</th><th class="num">Price</th><th class="num">Stock</th><th>Discount</th><th>Status</th><th class="actions-head">Actions</th></tr></thead>
   <tbody>
@@ -47,7 +47,7 @@
   {% endfor %}
   </tbody>
 </table></div>
-{% elif products %}
+{% elif products|length %}
 
 <div class="table-wrap"><table class="table">
   <thead><tr><th></th><th>Product</th><th class="num">Product ID</th><th>Color</th><th>Size</th><th>Category</th><th class="num">Price</th><th class="num">Stock</th><th>Discount</th><th>Status</th><th class="actions-head">Actions</th></tr></thead>

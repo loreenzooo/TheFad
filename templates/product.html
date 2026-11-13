@@ -39,7 +39,7 @@
     </p>
     <p class="detail-stock">{{ stock_line(status, stock) }}{% if selected %}<span class="muted small"> in {{ selected }}</span>{% endif %}</p>
 
-    {% if colors %}
+    {% if colors|length %}
     <h2 class="opt-title">Color: <span class="opt-value">{{ selected }}</span></h2>
     <div class="color-row">
       {% for c in colors %}

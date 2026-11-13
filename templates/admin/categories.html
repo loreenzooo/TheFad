@@ -12,21 +12,23 @@
   <input name="display_order" type="number" min="0" value="0" aria-label="Order on the shop (lower shows first)" title="Lower shows first" class="narrow">
   <button class="btn" type="submit">Add category</button>
 </form>
-{% if categories %}
+{% if categories|length %}
+<style>
+  .cat-name input { min-width: 14rem; }
+  .cat-order input { width: 90px; }
+</style>
 <div class="table-wrap"><table class="table">
   <thead><tr><th class="num">Category ID</th><th>Name</th><th>Display order</th><th class="num">Products</th><th class="actions-head">Actions</th></tr></thead>
   <tbody>
   {% for c in categories %}
     <tr>
-      <td class="num id-cell">{{ c.category_id }}</td>
-      <td colspan="3">
-        <form method="post" class="row-form" id="cat{{ c.category_id }}" action="{{ url_for('admin_products.update_category', {category_id: c.category_id}) }}">
+      <td class="num id-cell">{{ c.category_id }}
+        <form method="post" id="cat{{ c.category_id }}" action="{{ url_for('admin_products.update_category', {category_id: c.category_id}) }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <input name="category_name" value="{{ c.category_name }}" maxlength="50" required aria-label="Name">
-          <input name="display_order" type="number" min="0" value="{{ c.display_order }}" class="narrow" aria-label="Display order">
-          <span class="muted">{{ c.product_count }} product{{ '' if c.product_count == 1 else 's' }}</span>
-        </form>
-      </td>
+        </form></td>
+      <td class="cat-name" data-sort="{{ c.category_name }}"><input form="cat{{ c.category_id }}" name="category_name" value="{{ c.category_name }}" maxlength="50" required aria-label="Name"></td>
+      <td class="cat-order" data-sort="{{ c.display_order }}"><input form="cat{{ c.category_id }}" name="display_order" type="number" min="0" value="{{ c.display_order }}" aria-label="Display order"></td>
+      <td class="num">{{ c.product_count }}</td>
       <td class="actions">
         <button class="btn btn-sm btn-quiet" type="submit" form="cat{{ c.category_id }}">Save</button>
         <button class="btn btn-sm btn-danger" type="button"
